@@ -2,6 +2,7 @@ import struct
 
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 from numpy.ma.extras import average
 
 
@@ -86,22 +87,47 @@ def print_header(header):
     print(f"pad1: {header.pad1}")
 
 if __name__ == "__main__":
-    file_path = "./a1.out"
-    header, visibilities = read(file_path)
-    y_points = []
-    x_points = []
-    test = [[] for _ in range(len(visibilities[0][0]))]
-    for i in range(len(visibilities)):
-        for j in range(len(visibilities[i][0])):
-            test[j].append(visibilities[i][0][j][0].real)
+    for i in range(1, len(sys.argv)):
+        print(sys.argv[i])
+        header, visibilities = read(sys.argv[i])
+        results = [[[[] for _ in range(255)] for _ in range(4)] for _ in range(3)]
 
-    for i in range(len(test)):
-        temp = average(test[i])
-        test[i] = temp
+        for vis in range(len(visibilities)):
+            for baseline in range(len(visibilities[vis])):
+                for channel in range(len(visibilities[vis][baseline])):
+                    for polarization in range(len(visibilities[vis][baseline][channel])):
+                        results[baseline][polarization][channel].append(visibilities[vis][baseline][channel][polarization].real)
 
-    x_points = np.arange(len(test))
-    y_points = np.array(test)
+        for baseline in range(len(results)):
+            if baseline == 0 or baseline == 2:
+                for polarization in range(len(results[baseline])):
+                    if polarization == 0 or polarization == 3:
+                        for channel in range(len(results[baseline][polarization])):
+                            temp = average(results[baseline][polarization][channel])
+                            results[baseline][polarization][channel] = temp
 
-    plt.figure()
-    plt.plot(x_points, y_points)
-    plt.show()
+        for baseline in range(len(results)):
+            if baseline == 0 or baseline == 2:
+                for polarization in range(len(results[baseline])):
+                    if polarization == 0 or polarization == 3:
+                        file_name = str(sys.argv[i].split(".")[0]) + "_"
+                        x_points = np.arange(len(results[baseline][polarization]))
+                        y_points = results[baseline][polarization]
+
+                        plt.figure()
+                        plt.plot(x_points, y_points)
+
+                        if baseline == 0:
+                            file_name += "ib"
+                        elif baseline == 2:
+                            file_name += "ir"
+
+                        if polarization == 0:
+                            file_name += "_rr"
+                        elif polarization == 3:
+                            file_name += "_ll"
+
+                        file_name += ".png"
+
+                        plt.savefig(file_name)
+                        plt.close()
