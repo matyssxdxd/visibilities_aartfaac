@@ -1,10 +1,13 @@
+import os.path
 import struct
 
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 from numpy.ma.extras import average
-
+import argparse
+import json
+from vex import Vex
 
 class Header:
     def __init__(self):
@@ -86,10 +89,29 @@ def print_header(header):
     print(f"channelBandwidth: {header.channel_bandwidth}")
     print(f"pad1: {header.pad1}")
 
-if __name__ == "__main__":
-    for i in range(1, len(sys.argv)):
-        print(sys.argv[i])
-        header, visibilities = read(sys.argv[i])
+def generate_html(vex, ctrl):
+    output_path = ctrl["output-path"]
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    html = open(output_path + "/index.html", "w")
+    html.write("<!DOCTYPE html>")
+    html.write("<html lang=\"en\"")
+    html.write("<head>")
+    html.write("<meta charset=\"UTF-8\">")
+    html.write("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
+    html.write("<title>Visibilities</title>")
+    html.write("<style>")
+    html.write(".visibility { display: flex; align-items:center; width:100%; gap:10px; }")
+    html.write("</style>")
+    html.write("</head>")
+    html.write("<body>")
+
+
+    for i in range(0, len(control["visibility-files"])):
+        print(control["visibility-files"][i])
+        header, visibilities = read(control["visibility-files"][i])
         results = [[[[] for _ in range(255)] for _ in range(4)] for _ in range(3)]
 
         for vis in range(len(visibilities)):
@@ -108,9 +130,14 @@ if __name__ == "__main__":
 
         for baseline in range(len(results)):
             if baseline == 0 or baseline == 2:
+                html.write("<div class=\"visibility\">")
+                if baseline == 0:
+                    html.write(f"<p>{str(control["visibility-files"][i].split(".")[0]) + "_"}IB</p>")
+                elif baseline == 2:
+                    html.write(f"<p>{str(control["visibility-files"][i].split(".")[0]) + "_"}IR</p>")    
                 for polarization in range(len(results[baseline])):
                     if polarization == 0 or polarization == 3:
-                        file_name = str(sys.argv[i].split(".")[0]) + "_"
+                        file_name = str(control["visibility-files"][i].split(".")[0]) + "_"
                         x_points = np.arange(len(results[baseline][polarization]))
                         y_points = results[baseline][polarization]
 
@@ -128,6 +155,39 @@ if __name__ == "__main__":
                             file_name += "_ll"
 
                         file_name += ".png"
+                        
+                        image_directory = output_path + "/plots/"
 
-                        plt.savefig(file_name)
+                        if not os.path.exists(image_directory):
+                            os.makedirs(image_directory)
+
+                        plt.savefig(image_directory + file_name)
                         plt.close()
+
+                        if polarization == 0:
+                            html.write(f"<a href={os.path.abspath(image_directory + file_name)}>RR</a>")
+                        elif polarization == 3:
+                            html.write(f"<a href={os.path.abspath(image_directory + file_name)}>LL</a>")
+                html.write("</div>")
+
+
+    html.write("</body>")
+    html.write("</html>")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--vex", help="Observation's VEX file")
+    parser.add_argument("-c", "--control", help="Control file")
+
+    args = parser.parse_args()
+
+    file = open(args.control, 'r')
+    control = json.load(file)
+    file.close()
+
+    print(control["visibility-files"])
+
+    vex = Vex(args.vex)
+
+    generate_html(vex, control)
